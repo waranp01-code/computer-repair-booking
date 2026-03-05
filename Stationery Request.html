@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>எழுதுபொருள் கோரிக்கை அமைப்பு</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Tamil:wght@400;600;700&family=Noto+Sans+Sinhala:wght@400;600;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --fg: #f1f5f9;
+            --muted: #94a3b8;
+            --accent: #38bdf8;
+            --card: #1e293b;
+            --border: #334155;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --purple: #8b5cf6;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Space Grotesk', 'Noto Sans Tamil', sans-serif; background: var(--bg); color: var(--fg); min-height: 100vh; }
+        
+        .lang-ta { font-family: 'Noto Sans Tamil', sans-serif; }
+        .lang-si { font-family: 'Noto Sans Sinhala', sans-serif; }
+        .lang-en { font-family: 'Space Grotesk', sans-serif; }
+
+        .bg-pattern { position: fixed; inset: 0; background-image: radial-gradient(circle at 25px 25px, rgba(56, 189, 248, 0.03) 2px, transparent 0); background-size: 50px 50px; pointer-events: none; z-index: 0; }
+
+        .form-input { width: 100%; padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--fg); font-size: 14px; }
+        .form-input:focus { outline: none; border-color: var(--accent); }
+
+        .btn-primary { background: linear-gradient(135deg, var(--accent) 0%, #0ea5e9 100%); color: var(--bg); padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; transition: all 0.3s; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(56, 189, 248, 0.3); }
+        .btn-secondary { background: transparent; color: var(--fg); padding: 10px 20px; border-radius: 8px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); }
+        .btn-secondary:hover { border-color: var(--accent); }
+        
+        .page { display: none; animation: fadeIn 0.3s ease; }
+        .page.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .nav-bar { display: flex; gap: 0.5rem; flex-wrap: wrap; border-bottom: 1px solid var(--border); padding: 1rem 0; margin-bottom: 1.5rem; }
+        .nav-link { padding: 8px 16px; border-radius: 6px; cursor: pointer; color: var(--muted); font-weight: 500; transition: all 0.2s; background: transparent; border: none; font-size: 14px; }
+        .nav-link:hover { background: rgba(56, 189, 248, 0.1); color: var(--fg); }
+        .nav-link.active { color: var(--bg); background: var(--accent); font-weight: 600; }
+
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; position: relative; }
+
+        .status-card-item { background: var(--bg); border: 1px solid var(--border); padding: 16px; border-radius: 8px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s; }
+        .status-card-item:hover { border-color: var(--accent); transform: translateY(-2px); }
+
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); z-index: 50; display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: all 0.3s; padding: 20px; }
+        .modal-overlay.active { opacity: 1; visibility: visible; }
+        .modal-content { background: var(--card); border-radius: 16px; border: 1px solid var(--accent); width: 100%; max-width: 1000px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        .bill-container { background: white; color: #1e293b; padding: 40px; width: 100%; overflow-y: auto; }
+        .bill-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .bill-table th, .bill-table td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; }
+        .bill-table th { background: #f1f5f9; font-weight: 600; }
+
+        .admin-table { width: 100%; border-collapse: collapse; }
+        .admin-table th { text-align: left; padding: 12px; border-bottom: 2px solid var(--border); color: var(--muted); font-size: 12px; text-transform: uppercase; }
+        .admin-table td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
+
+        .toast { position: fixed; bottom: 20px; right: 20px; padding: 14px 24px; background: var(--card); border: 1px solid var(--accent); border-radius: 8px; z-index: 9999; transform: translateX(200%); transition: transform 0.4s; }
+        .toast.show { transform: translateX(0); }
+        
+        .badge { padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; }
+        .badge-pending { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+        .badge-recommended { background: rgba(139, 92, 246, 0.2); color: var(--purple); }
+        .badge-approved { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+        .badge-rejected { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+
+        #loginPage {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 200;
+            background: var(--bg);
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; visibility: hidden; transition: all 0.4s ease;
+            left: -100%; 
+        }
+        #loginPage.active { opacity: 1; visibility: visible; left: 0; }
+        body.login-active #appContainer { opacity: 0; pointer-events: none; height: 0; overflow: hidden; }
+
+        .login-split { display: grid; grid-template-columns: 1fr; width: 100%; height: 100%; }
+        @media (min-width: 768px) { .login-split { grid-template-columns: 1fr 1fr; } }
+        
+        .login-brand { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); display: none; flex-direction: column; justify-content: center; align-items: center; padding: 3rem; border-right: 1px solid var(--border); position: relative; overflow: hidden; }
+        @media (min-width: 768px) { .login-brand { display: flex; } }
+        .login-form-side { display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 2rem; position: relative; background: var(--bg); }
+        .close-login { position: absolute; top: 20px; right: 20px; color: var(--muted); cursor: pointer; font-size: 2rem; transition: color 0.2s; z-index: 10; }
+        .close-login:hover { color: var(--accent); }
+
+        /* Sync indicator style */
+        .sync-status { position: fixed; bottom: 20px; left: 20px; font-size: 10px; color: var(--muted); display: flex; align-items: center; gap: 5px; z-index: 100; }
+        .sync-dot { width: 6px; height: 6px; background: var(--success); border-radius: 50%; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    <div class="sync-status"><div class="sync-dot"></div> Auto Sync Active</div>
+
+    <!-- ========== LOGIN PAGE ========== -->
+    <div id="loginPage">
+        <div class="login-split">
+            <div class="login-brand">
+                <div class="relative z-10 text-center">
+                    <div class="w-20 h-20 bg-[var(--accent)]/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <svg class="w-10 h-10 text-[var(--accent)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                    </div>
+                    <h1 class="text-3xl font-bold text-white mb-3 lang-ta">பிரதேச செயலகம்</h1>
+                    <p class="text-[var(--muted)] text-sm max-w-xs mx-auto lang-ta">எழுதுபொருள் கோரிக்கை மேலாண்மை அமைப்பு</p>
+                </div>
+            </div>
+            <div class="login-form-side">
+                <div class="close-login" onclick="closeLoginModal()">&times;</div>
+                <div class="w-full max-w-sm">
+                    <h2 class="text-2xl font-bold mb-2" data-translate="welcome">Welcome Back</h2>
+                    <p class="text-[var(--muted)] mb-8 text-sm" data-translate="loginSubtitle">Sign in to manage requests</p>
+                    <form onsubmit="handleLogin(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-xs text-[var(--muted)] mb-1" data-translate="username">Username</label>
+                            <input type="text" id="loginUsername" class="form-input" placeholder="Enter username" required>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-[var(--muted)] mb-1" data-translate="password">Password</label>
+                            <input type="password" id="loginPassword" class="form-input" placeholder="Enter password" required>
+                        </div>
+                        <p class="text-xs text-center text-[var(--danger)] hidden" id="loginError">Invalid Credentials</p>
+                        <button type="submit" class="btn-primary w-full mt-4">Login</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== MAIN APP ========== -->
+    <div id="appContainer">
+        <header class="border-b border-[var(--border)] bg-[var(--bg)]/80 backdrop-blur-xl sticky top-0 z-40">
+            <div class="max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between flex-wrap gap-4">
+                <h1 class="text-lg font-bold lang-ta" data-translate="title">எழுதுபொருள் கோரிக்கை அமைப்பு</h1>
+                <div class="flex items-center gap-4">
+                    <div id="authArea"><button onclick="openLoginModal()" class="btn-secondary text-sm">Admin Login</button></div>
+                    <div class="flex gap-1 bg-[var(--bg)] p-1 rounded-lg border border-[var(--border)]">
+                        <button class="lang-btn active text-xs px-3 py-1 rounded" data-lang="ta">தமிழ்</button>
+                        <button class="lang-btn text-xs px-3 py-1 rounded" data-lang="en">English</button>
+                        <button class="lang-btn text-xs px-3 py-1 rounded" data-lang="si">සිංහල</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-[1400px] mx-auto p-6 relative z-10">
+            <nav class="nav-bar" id="mainNav">
+                <button class="nav-link active" data-page="newapp" onclick="switchPage('newapp')">புதிய விண்ணப்பம்</button>
+                <button class="nav-link hidden" data-page="pending" onclick="switchPage('pending')">நிலுவையில் உள்ளவை</button>
+                <button class="nav-link hidden" data-page="recommended" onclick="switchPage('recommended')">பரிந்துரைக்கப்பட்டவை</button>
+                <button class="nav-link hidden" data-page="approved" onclick="switchPage('approved')">அங்கீகரிக்கப்பட்டவை</button>
+                <button class="nav-link hidden" data-page="admin" onclick="switchPage('admin')">நிர்வாக பலகை</button>
+            </nav>
+
+            <!-- NEW APP PAGE -->
+            <div id="page-newapp" class="page active">
+                <div class="max-w-2xl mx-auto">
+                    <div class="card">
+                        <h2 class="text-xl font-bold mb-6 text-[var(--accent)] flex items-center gap-2">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                            <span>புதிய விண்ணப்பம்</span>
+                        </h2>
+                        <form id="documentForm" class="space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs text-[var(--muted)] mb-1">குறிப்பு எண்</label>
+                                    <input type="text" class="form-input text-sm" id="refNo" required>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-[var(--muted)] mb-1">தேதி</label>
+                                    <input type="date" class="form-input text-sm" id="docDate" required>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-[var(--muted)] mb-1">கிளை / பிரிவு</label>
+                                <select class="form-input text-sm" id="branch" required>
+                                    <option value="">-- தேர்வு செய்க --</option>
+                                    <option value="EB">EB</option>
+                                    <option value="Accounts">Accounts</option>
+                                    <option value="SSO">SSO</option>
+				    <option value="ADR">ADR</option>
+                                    <option value="Land">Land</option>
+                                    <option value="Field">Field</option>
+				     <option value="Planning">Planning</option>
+                                    <option value="NIC">NIC</option>
+                                    <option value="Samurdhi">Samurdhi</option>
+                                </select>
+                            </div>
+                            <div class="border-t border-[var(--border)] pt-4">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-sm font-semibold">பொருட்கள்</span>
+                                    <button type="button" class="text-[var(--accent)] text-xs hover:underline" onclick="addItemRow()">+ சேர்க்க</button>
+                                </div>
+                                <div id="itemsContainer" class="space-y-2 max-h-60 overflow-y-auto"></div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs text-[var(--muted)] mb-1">பெயர்</label>
+                                    <input type="text" class="form-input text-sm" id="creatorName" required>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-[var(--muted)] mb-1">பதவி</label>
+                                    <input type="text" class="form-input text-sm" id="creatorDesignation" required>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn-primary w-full mt-4">சமர்ப்பிக்க</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PENDING PAGE -->
+            <div id="page-pending" class="page">
+                <div class="card">
+                    <div class="flex items-center justify-between mb-4 border-b border-[var(--border)] pb-4">
+                        <h2 class="text-xl font-bold text-[var(--warning)]">நிலுவையில் உள்ளவை</h2>
+                        <span class="badge badge-pending text-sm" id="pendingCount">0</span>
+                    </div>
+                    <div id="pendingList" class="space-y-2"></div>
+                </div>
+            </div>
+
+            <!-- RECOMMENDED PAGE -->
+            <div id="page-recommended" class="page">
+                <div class="card">
+                    <div class="flex items-center justify-between mb-4 border-b border-[var(--border)] pb-4">
+                        <h2 class="text-xl font-bold text-[var(--purple)]">பரிந்துரைக்கப்பட்டவை</h2>
+                        <span class="badge badge-recommended text-sm" id="recommendedCount">0</span>
+                    </div>
+                    <div id="recommendedList" class="space-y-2"></div>
+                </div>
+            </div>
+
+            <!-- APPROVED PAGE -->
+            <div id="page-approved" class="page">
+                <div class="card">
+                    <div class="flex items-center justify-between mb-4 border-b border-[var(--border)] pb-4">
+                        <h2 class="text-xl font-bold text-[var(--success)]">அங்கீகரிக்கப்பட்டவை</h2>
+                        <span class="badge badge-approved text-sm" id="approvedCount">0</span>
+                    </div>
+                    <div id="approvedList" class="space-y-2"></div>
+                </div>
+            </div>
+
+            <!-- ADMIN PAGE -->
+            <div id="page-admin" class="page">
+                <div class="card">
+                    <h2 class="text-xl font-bold mb-6">Admin Dashboard</h2>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <div class="bg-[var(--bg)] p-4 rounded-lg border-l-4 border-[var(--accent)]">
+                            <p class="text-xs text-[var(--muted)]">Total</p>
+                            <p class="text-2xl font-bold" id="statTotal">0</p>
+                        </div>
+                        <div class="bg-[var(--bg)] p-4 rounded-lg border-l-4 border-[var(--warning)]">
+                            <p class="text-xs text-[var(--muted)]">Pending</p>
+                            <p class="text-2xl font-bold" id="statPending">0</p>
+                        </div>
+                        <div class="bg-[var(--bg)] p-4 rounded-lg border-l-4 border-[var(--purple)]">
+                            <p class="text-xs text-[var(--muted)]">Recommended</p>
+                            <p class="text-2xl font-bold" id="statRecommended">0</p>
+                        </div>
+                        <div class="bg-[var(--bg)] p-4 rounded-lg border-l-4 border-[var(--success)]">
+                            <p class="text-xs text-[var(--muted)]">Approved</p>
+                            <p class="text-2xl font-bold" id="statApproved">0</p>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="admin-table">
+                            <thead><tr><th>Ref No</th><th>Date</th><th>Branch</th><th>SK</th><th>Acc</th><th>Action</th></tr></thead>
+                            <tbody id="adminTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- MODAL -->
+    <div id="previewModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="p-4 border-b border-[var(--border)] flex justify-between items-center bg-[var(--card)]">
+                <h3 class="font-bold">ஆவணப் பார்வை</h3>
+                <button onclick="closePreviewModal()" class="text-2xl text-[var(--muted)] hover:text-white">&times;</button>
+            </div>
+            <div class="flex flex-col md:flex-row h-full overflow-hidden">
+                <div class="w-full md:w-80 bg-[var(--bg)] p-5 border-r border-[var(--border)] overflow-y-auto">
+                    <div id="actionArea"></div>
+                </div>
+                <div class="flex-1 p-2 bg-gray-500 overflow-y-auto">
+                    <div id="documentPreview" class="bill-container shadow-xl"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ==========================================================
+        // CONFIGURATION
+        // ==========================================================
+        const SHEET_API_URL = 'https://script.google.com/macros/s/AKfycbzCA_EWGVq19Wxu7tmDgDyPT0frQOMhC-JXcfVMWRR8SExtzYBVT_QotI___ew1ChTr/exec'; 
+
+        const USERS_DB = {
+            'Tharsan': { password: '456', role: 'recommender', name: 'தர்சன்', name_en: 'Tharsan', designation: 'SK' },
+            'Jeevitha': { password: '123', role: 'approver', name: 'ஜீவிதா', name_en: 'Jeevitha', designation: 'Accountant' },
+            'Admin': { password: 'admin123', role: 'admin', name: 'Administrator', name_en: 'Admin', designation: 'System' }
+        };
+
+        const translations = {
+            ta: { title: "எழுதுபொருள் கோரிக்கை அமைப்பு", pending: "நிலுவையில்", recommended: "பரிந்துரைக்கப்பட்டது", approved: "அங்கீகரிக்கப்பட்டது", rejected: "நிராகரிக்கப்பட்டது" },
+            en: { title: "Stationery Request System", pending: "Pending", recommended: "Recommended", approved: "Approved", rejected: "Rejected" },
+            si: { title: "ලියුම් ද්‍රව්‍ය ඉල්ලුම් පද්ධතිය", pending: "විරාමයේ", recommended: "නිර්දේශිත", approved: "අනුමත", rejected: "ප්‍රතික්ෂේපිත" }
+        };
+
+        let currentLang = 'ta';
+        let currentUser = null;
+        let documents = [];
+        let currentDocument = null;
+        let editingDocId = null;
+        let itemCounter = 0;
+
+        // --- Helper: Safe Parse ---
+        function safeParse(val) {
+            if (!val) return null;
+            if (typeof val === 'object') return val;
+            try { return JSON.parse(val); } catch (e) { return null; }
+        }
+
+        // --- Google Sheet Integration ---
+        async function fetchDocuments() {
+            if (!SHEET_API_URL) return;
+            try {
+                const response = await fetch(SHEET_API_URL);
+                const data = await response.json();
+                
+                documents = data.map(d => {
+                    return {
+                        ...d,
+                        id: Number(d.id) || d.id,
+                        items: safeParse(d.items) || [],
+                        creator: safeParse(d.creator) || {},
+                        recommending: safeParse(d.recommending) || {},
+                        approving: safeParse(d.approving) || {}
+                    };
+                });
+                
+                // Update UI silently if user is on a list page
+                const activePage = document.querySelector('.page.active').id.replace('page-', '');
+                if (activePage !== 'newapp') {
+                    renderList('pending', 'pendingList', 'pendingCount');
+                    renderList('recommended', 'recommendedList', 'recommendedCount');
+                    renderList('approved', 'approvedList', 'approvedCount');
+                    renderAdminTable();
+                }
+            } catch (err) {
+                console.error("Sync Error:", err);
+            }
+        }
+
+        async function saveDocument(doc) {
+            if (!SHEET_API_URL) return;
+            try {
+                await fetch(SHEET_API_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(doc)
+                });
+                // Immediately fetch to ensure sync
+                setTimeout(fetchDocuments, 1000); 
+            } catch (err) {
+                console.error("Save Error:", err);
+            }
+        }
+
+        // --- Core Logic ---
+        function openLoginModal() { document.getElementById('loginPage').classList.add('active'); document.body.classList.add('login-active'); }
+        function closeLoginModal() { document.getElementById('loginPage').classList.remove('active'); document.body.classList.remove('login-active'); document.getElementById('loginError').classList.add('hidden'); }
+        function openPreviewModal() { document.getElementById('previewModal').classList.add('active'); }
+        function closePreviewModal() { document.getElementById('previewModal').classList.remove('active'); }
+        
+        function handleLogin(e) {
+            e.preventDefault();
+            const u = document.getElementById('loginUsername').value;
+            const p = document.getElementById('loginPassword').value;
+            if (USERS_DB[u] && USERS_DB[u].password === p) {
+                currentUser = { username: u, ...USERS_DB[u] };
+                closeLoginModal();
+                updateAuthUI();
+                updateNavVisibility();
+                showToast('Login Successful!');
+            } else {
+                document.getElementById('loginError').classList.remove('hidden');
+            }
+        }
+
+        function logoutUser() {
+            currentUser = null;
+            updateAuthUI();
+            updateNavVisibility();
+            switchPage('newapp');
+            showToast('Logged out.');
+        }
+
+        function updateAuthUI() {
+            const area = document.getElementById('authArea');
+            if (currentUser) {
+                area.innerHTML = `<span class="text-sm mr-2 hidden sm:inline">${currentUser.name}</span><button onclick="logoutUser()" class="btn-primary text-xs py-1 px-3">Logout</button>`;
+            } else {
+                area.innerHTML = `<button onclick="openLoginModal()" class="btn-secondary text-sm">Admin Login</button>`;
+            }
+        }
+
+        function switchPage(pageName) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById('page-' + pageName).classList.add('active');
+            document.querySelectorAll('.nav-link').forEach(link => {
+                if(link.getAttribute('data-page') === pageName) link.classList.add('active');
+                else link.classList.remove('active');
+            });
+            if(pageName === 'pending') renderList('pending', 'pendingList', 'pendingCount');
+            if(pageName === 'recommended') renderList('recommended', 'recommendedList', 'recommendedCount');
+            if(pageName === 'approved') renderList('approved', 'approvedList', 'approvedCount');
+            if(pageName === 'admin') renderAdminTable();
+        }
+
+        function updateNavVisibility() {
+            const navNew = document.querySelector('[data-page="newapp"]');
+            const navPending = document.querySelector('[data-page="pending"]');
+            const navRecommended = document.querySelector('[data-page="recommended"]');
+            const navApproved = document.querySelector('[data-page="approved"]');
+            const navAdmin = document.querySelector('[data-page="admin"]');
+
+            navNew.classList.remove('hidden');
+
+            if(currentUser) {
+                if(currentUser.role === 'recommender') {
+                    navPending.classList.remove('hidden'); navRecommended.classList.add('hidden'); navApproved.classList.remove('hidden'); navAdmin.classList.add('hidden'); switchPage('pending');
+                } else if(currentUser.role === 'approver') {
+                    navPending.classList.add('hidden'); navRecommended.classList.remove('hidden'); navApproved.classList.remove('hidden'); navAdmin.classList.add('hidden'); switchPage('recommended');
+                } else if(currentUser.role === 'admin') {
+                    navPending.classList.remove('hidden'); navRecommended.classList.remove('hidden'); navApproved.classList.remove('hidden'); navAdmin.classList.remove('hidden'); switchPage('admin');
+                }
+            } else {
+                navPending.classList.add('hidden'); navRecommended.classList.add('hidden'); navApproved.classList.add('hidden'); navAdmin.classList.add('hidden'); switchPage('newapp');
+            }
+        }
+
+        // --- Form Logic ---
+        function addItemRow(val = '', qty = '') {
+            itemCounter++;
+            const container = document.getElementById('itemsContainer');
+            const div = document.createElement('div');
+            div.className = 'flex gap-2';
+            div.innerHTML = `
+                <input type="text" class="form-input text-xs flex-1 item-name" placeholder="பொருள் பெயர்" value="${val}">
+                <input type="text" class="form-input text-xs w-16 item-qty" placeholder="அளவு" value="${qty}">
+                <button type="button" onclick="this.parentElement.remove()" class="text-red-500 px-2 hover:bg-red-500/10 rounded">X</button>
+            `;
+            container.appendChild(div);
+        }
+
+        document.getElementById('documentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const items = [];
+            document.querySelectorAll('#itemsContainer > div').forEach(row => {
+                const name = row.querySelector('.item-name').value;
+                const qty = row.querySelector('.item-qty').value;
+                if (name) items.push({ name, qty });
+            });
+
+            const newDoc = {
+                id: Date.now(),
+                refNo: document.getElementById('refNo').value,
+                date: document.getElementById('docDate').value,
+                branch: document.getElementById('branch').value,
+                items: items,
+                creator: { name: document.getElementById('creatorName').value, designation: document.getElementById('creatorDesignation').value },
+                recommending: { name: '', designation: '', status: 'pending' },
+                approving: { name: '', designation: '', status: 'pending' }
+            };
+            
+            documents.push(newDoc);
+            await saveDocument(newDoc); 
+            
+            showToast('Submitted Successfully!');
+            resetForm();
+        });
+
+        function resetForm() {
+            document.getElementById('documentForm').reset();
+            document.getElementById('docDate').valueAsDate = new Date();
+            document.getElementById('itemsContainer').innerHTML = '';
+            addItemRow();
+        }
+
+        // --- Render Logic ---
+        function renderList(type, containerId, countId) {
+            let list = [];
+            if (type === 'pending') list = documents.filter(d => d.recommending.status === 'pending');
+            if (type === 'recommended') list = documents.filter(d => d.recommending.status === 'recommended' && d.approving.status === 'pending');
+            if (type === 'approved') list = documents.filter(d => d.approving.status === 'approved');
+
+            document.getElementById(countId).textContent = list.length;
+            const container = document.getElementById(containerId);
+            
+            if (list.length === 0) {
+                container.innerHTML = `<p class="text-center text-[var(--muted)] text-sm py-10">விண்ணப்பங்கள் இல்லை</p>`;
+            } else {
+                container.innerHTML = list.map(d => `
+                    <div class="status-card-item" onclick="viewDocument(${d.id})">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="font-bold">${d.refNo}</span>
+                            <span class="text-xs text-[var(--muted)]">${new Date(d.date).toLocaleDateString()}</span>
+                        </div>
+                        <p class="text-sm text-[var(--muted)] truncate">${d.items.map(i=>i.name).join(', ')}</p>
+                        <div class="mt-2 flex justify-end"><span class="text-xs text-[var(--accent)]">பார்வை →</span></div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function renderAdminTable() {
+            const tbody = document.getElementById('adminTableBody');
+            
+            document.getElementById('statTotal').textContent = documents.length;
+            document.getElementById('statPending').textContent = documents.filter(d => d.recommending.status === 'pending').length;
+            document.getElementById('statRecommended').textContent = documents.filter(d => d.recommending.status === 'recommended').length;
+            document.getElementById('statApproved').textContent = documents.filter(d => d.approving.status === 'approved').length;
+
+            if(documents.length === 0) { tbody.innerHTML = `<tr><td colspan="6" class="text-center text-[var(--muted)]">No Data</td></tr>`; return; }
+
+            tbody.innerHTML = documents.map(d => `
+                <tr>
+                    <td class="font-medium">${d.refNo}</td>
+                    <td>${new Date(d.date).toLocaleDateString()}</td>
+                    <td>${d.branch}</td>
+                    <td><span class="badge badge-${d.recommending.status}">${translations[currentLang][d.recommending.status]}</span></td>
+                    <td><span class="badge badge-${d.approving.status}">${translations[currentLang][d.approving.status]}</span></td>
+                    <td><button onclick="viewDocument(${d.id})" class="text-[var(--accent)] text-xs">View</button></td>
+                </tr>
+            `).join('');
+        }
+
+        // --- View & Action ---
+        function viewDocument(id) {
+            const doc = documents.find(d => d.id === id);
+            if (!doc) return;
+            currentDocument = doc;
+            editingDocId = id;
+            
+            renderPreview(doc);
+            
+            const actionArea = document.getElementById('actionArea');
+            if (!currentUser) {
+                actionArea.innerHTML = `<p class="text-center text-[var(--muted)] text-sm">Please login to take action.</p>`;
+            } else {
+                let html = `<div class="space-y-4">`;
+                html += `<div class="bg-[var(--card)] p-3 rounded border"><p class="text-xs text-[var(--muted)]">SK Status</p><p class="font-bold">${translations[currentLang][doc.recommending.status]}</p></div>`;
+                html += `<div class="bg-[var(--card)] p-3 rounded border"><p class="text-xs text-[var(--muted)]">Acc Status</p><p class="font-bold">${translations[currentLang][doc.approving.status]}</p></div>`;
+
+                if (currentUser.role === 'recommender' && doc.recommending.status === 'pending') {
+                    html += `<select id="modalStatusSelect" class="form-input text-sm"><option value="recommended">Recommended</option><option value="rejected">Rejected</option></select><button onclick="saveAction('recommending')" class="btn-primary w-full text-sm">Submit</button>`;
+                } else if (currentUser.role === 'approver' && doc.recommending.status === 'recommended') {
+                    html += `<select id="modalStatusSelect" class="form-input text-sm"><option value="approved">Approve</option><option value="rejected">Reject</option></select><button onclick="saveAction('approving')" class="btn-primary w-full text-sm">Submit</button>`;
+                }
+
+                html += `<button onclick="downloadPDF()" class="btn-secondary w-full text-sm mt-4">PDF Download</button></div>`;
+                actionArea.innerHTML = html;
+            }
+            openPreviewModal();
+        }
+
+        async function saveAction(type) {
+            const idx = documents.findIndex(d => d.id === editingDocId);
+            const status = document.getElementById('modalStatusSelect').value;
+            
+            if (idx !== -1) {
+                if (type === 'recommending') documents[idx].recommending = { name: currentUser.name, designation: currentUser.designation, status: status };
+                else if (type === 'approving') documents[idx].approving = { name: currentUser.name, designation: currentUser.designation, status: status };
+                
+                showToast('Updating...');
+                await saveDocument(documents[idx]);
+                showToast('Updated!');
+                closePreviewModal();
+                switchPage(document.querySelector('.page.active').id.replace('page-', '')); 
+            }
+        }
+
+        function renderPreview(doc) {
+            const container = document.getElementById('documentPreview');
+            const itemsRows = (doc.items && Array.isArray(doc.items)) ? doc.items.map((i, k) => `<tr><td>${k+1}</td><td>${i.name}</td><td>${i.qty}</td></tr>`).join('') : '<tr><td colspan="3">No items</td></tr>';
+            
+            let skStatusHtml = doc.recommending.status !== 'pending' ? `<div style="font-size: 11px; color: ${doc.recommending.status === 'recommended' ? '#22c55e' : '#ef4444'}; font-weight: 600;">${translations[currentLang][doc.recommending.status]}</div>` : '';
+            let accStatusHtml = doc.approving.status !== 'pending' ? `<div style="font-size: 11px; color: ${doc.approving.status === 'approved' ? '#22c55e' : '#ef4444'}; font-weight: 600;">${translations[currentLang][doc.approving.status]}</div>` : '';
+
+            container.innerHTML = `
+                <div style="font-family: sans-serif; padding: 20px;">
+                    <div style="text-align:center; border-bottom:2px solid #000; padding-bottom:10px; margin-bottom:20px;">
+                        <h1 style="font-size: 18px; margin:0;">எழுதுபொருள் கோரிக்கை அமைப்பு</h1>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
+                        <div><strong>Ref:</strong> ${doc.refNo}</div>
+                        <div><strong>Date:</strong> ${new Date(doc.date).toLocaleDateString()}</div>
+                    </div>
+                    <table class="bill-table"><thead><tr><th>#</th><th>Item</th><th>Qty</th></tr></thead><tbody>${itemsRows}</tbody></table>
+                    <div style="display:flex; justify-content:space-between; margin-top:50px;">
+                        <div style="text-align:center; width:30%;"><div style="border-top:1px solid #000; margin-top:60px; padding-top:5px;"><div style="font-weight:bold;">${doc.creator.name || '......'}</div><div style="font-size:12px;">${doc.creator.designation || ''}</div></div></div>
+                        <div style="text-align:center; width:30%;"><div style="border-top:1px solid #000; margin-top:60px; padding-top:5px;"><div style="font-weight:bold;">${doc.recommending.name || '......'}</div>${skStatusHtml}<div style="font-size:12px;">SK</div></div></div>
+                        <div style="text-align:center; width:30%;"><div style="border-top:1px solid #000; margin-top:60px; padding-top:5px;"><div style="font-weight:bold;">${doc.approving.name || '......'}</div>${accStatusHtml}<div style="font-size:12px;">Acc</div></div></div>
+                    </div>
+                </div>`;
+        }
+
+        function downloadPDF() {
+            const element = document.getElementById('documentPreview');
+            html2pdf().from(element).set({margin:0, filename:`${currentDocument.refNo}.pdf`}).save();
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 2000);
+        }
+
+        // --- Init ---
+        document.getElementById('docDate').valueAsDate = new Date();
+        addItemRow();
+        updateAuthUI();
+        updateNavVisibility(); 
+        fetchDocuments(); 
+
+        // AUTO-SYNC: Refresh data every 5 seconds
+        setInterval(fetchDocuments, 5000); 
+
+        // Language Listener
+        document.body.addEventListener('click', (e) => {
+            if(e.target.classList.contains('lang-btn')) {
+                document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                currentLang = e.target.dataset.lang;
+                applyTranslations();
+                if(document.getElementById('previewModal').classList.contains('active') && currentDocument) renderPreview(currentDocument);
+            }
+        });
+    </script>
+</body>
+</html>
